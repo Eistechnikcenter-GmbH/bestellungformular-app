@@ -1,18 +1,17 @@
 import Link from "next/link";
-import { fetchCrmLeads } from "@/lib/odoo-crm";
+import { fetchCrmLeads, type CrmRow } from "@/lib/odoo-crm";
 import { CrmTable } from "./CrmTable";
 
 /** Always fetch fresh data from Odoo on every visit (no caching). */
 export const dynamic = "force-dynamic";
 
 export default async function CrmPage() {
-  let rows;
+  let rows: CrmRow[] = [];
   let error: string | null = null;
   try {
     rows = await fetchCrmLeads();
   } catch (e) {
     error = e instanceof Error ? e.message : "Unbekannter Fehler";
-    rows = [];
   }
 
   return (
