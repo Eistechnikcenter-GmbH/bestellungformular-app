@@ -1,17 +1,16 @@
 import Link from "next/link";
-import { fetchCrmLeads } from "@/lib/odoo-crm";
+import { fetchCrmLeads, type CrmRow } from "@/lib/odoo-crm";
 import { OrderForm } from "./OrderForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function BestellformularPage() {
-  let leads;
+  let leads: CrmRow[] = [];
   let error: string | null = null;
   try {
     leads = await fetchCrmLeads();
   } catch (e) {
     error = e instanceof Error ? e.message : "Fehler beim Laden der CRM-Daten";
-    leads = [];
   }
 
   return (
