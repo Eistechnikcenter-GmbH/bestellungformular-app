@@ -1,13 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BuyerSection, emptyBuyer, type BuyerData } from "./BuyerSection";
+import {
+  OrderLinesSection,
+  getEmptyOrderLines,
+  type OrderLine,
+} from "./OrderLinesSection";
+import {
+  OptionsSection,
+  defaultOptions,
+  type OptionsData,
+} from "./OptionsSection";
 import type { CrmRow } from "@/lib/odoo-crm";
+import type { OdooProduct } from "@/lib/odoo-products";
 
 type Props = { leads: CrmRow[] };
 
 export function OrderForm({ leads }: Props) {
   const [buyer, setBuyer] = useState<BuyerData>(emptyBuyer);
+  const [products, setProducts] = useState<OdooProduct[]>([]);
+  const [lines, setLines] = useState<OrderLine[]>(getEmptyOrderLines());
+  const [options, setOptions] = useState<OptionsData>(defaultOptions);
+
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setProducts)
+      .catch(() => setProducts([]));
+  }, []);
 
   return (
     <div className="rounded-xl border border-stone-300 bg-white p-6 shadow-sm">
@@ -27,6 +48,14 @@ export function OrderForm({ leads }: Props) {
       </section>
 
       <BuyerSection leads={leads} buyer={buyer} onBuyerChange={setBuyer} />
+
+      <OrderLinesSection
+        products={products}
+        lines={lines}
+        onLinesChange={setLines}
+      />
+
+      <OptionsSection options={options} onOptionsChange={setOptions} />
     </div>
   );
 }
