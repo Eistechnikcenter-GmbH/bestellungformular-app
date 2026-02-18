@@ -12,6 +12,7 @@ import {
   defaultOptions,
   type OptionsData,
 } from "./OptionsSection";
+import { SignatureDateSection } from "./SignatureDateSection";
 import type { CrmRow } from "@/lib/odoo-crm";
 import type { OdooProduct } from "@/lib/odoo-products";
 
@@ -56,6 +57,8 @@ export function OrderForm({ leads }: Props) {
       />
 
       <OptionsSection options={options} onOptionsChange={setOptions} />
+
+      <SignatureDateSection />
     </div>
   );
 }

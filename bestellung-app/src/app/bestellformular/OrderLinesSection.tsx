@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import type { OdooProduct } from "@/lib/odoo-products";
 
 function str(v: unknown): string {
@@ -61,7 +62,10 @@ type Props = {
 export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
   const [openDropdownRow, setOpenDropdownRow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLTableCellElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -73,11 +77,23 @@ export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
     ).slice(0, 100);
   }, [products, search]);
 
+  useLayoutEffect(() => {
+    if (openDropdownRow === null) {
+      setDropdownRect(null);
+      return;
+    }
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setDropdownRect({ top: rect.bottom, left: rect.left, width: rect.width });
+  }, [openDropdownRow]);
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpenDropdownRow(null);
-      }
+      const target = e.target as Node;
+      if (dropdownRef.current?.contains(target)) return;
+      if (containerRef.current?.contains(target)) return;
+      setOpenDropdownRow(null);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -163,7 +179,10 @@ export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
                     className="w-16 rounded border border-stone-300 px-2 py-1 text-right focus:border-stone-500 focus:outline-none"
                   />
                 </td>
-                <td className="relative p-2">
+                <td
+                  ref={openDropdownRow === i ? triggerRef : undefined}
+                  className="relative p-2"
+                >
                   <div className="flex w-full items-center gap-1">
                     <input
                       type="text"
@@ -181,42 +200,56 @@ export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
                       <ChevronDown />
                     </button>
                   </div>
-                  {openDropdownRow === i && (
-                    <div className="absolute left-0 right-0 top-full z-[100] mt-2 max-h-56 overflow-hidden rounded border border-stone-300 bg-white shadow-lg">
-                      <div className="border-b border-stone-200 p-1">
-                        <input
-                          type="search"
-                          placeholder="Suchen (Name, Artikelnummer)…"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          className="w-full rounded border border-stone-200 px-2 py-1.5 text-sm focus:border-stone-400 focus:outline-none"
-                          autoFocus
-                        />
-                      </div>
-                      <ul className="max-h-44 overflow-y-auto py-1">
-                        {filteredProducts.length === 0 ? (
-                          <li className="px-2 py-1.5 text-stone-500">Keine Treffer.</li>
-                        ) : (
-                          filteredProducts.map((p) => (
-                            <li key={p.id}>
-                              <button
-                                type="button"
-                                className="w-full px-2 py-1.5 text-left text-sm hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
-                                onClick={() => selectProduct(i, p)}
-                              >
-                                {str(p.name) || str(p.default_code) || `#${p.id}`}
-                                {p.list_price != null && (
-                                  <span className="ml-2 text-stone-500">
-                                    {Number(p.list_price).toFixed(2)} EUR
-                                  </span>
-                                )}
-                              </button>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    </div>
-                  )}
+                  {typeof document !== "undefined" &&
+                    openDropdownRow === i &&
+                    dropdownRect &&
+                    createPortal(
+                      <div
+                        ref={dropdownRef}
+                        className="max-h-56 overflow-hidden rounded border border-stone-300 bg-white shadow-lg"
+                        style={{
+                          position: "fixed",
+                          top: dropdownRect.top + 8,
+                          left: dropdownRect.left,
+                          width: dropdownRect.width,
+                          zIndex: 9999,
+                        }}
+                      >
+                        <div className="border-b border-stone-200 p-1">
+                          <input
+                            type="search"
+                            placeholder="Suchen (Name, Artikelnummer)…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full rounded border border-stone-200 px-2 py-1.5 text-sm focus:border-stone-400 focus:outline-none"
+                            autoFocus
+                          />
+                        </div>
+                        <ul className="max-h-44 overflow-y-auto py-1">
+                          {filteredProducts.length === 0 ? (
+                            <li className="px-2 py-1.5 text-stone-500">Keine Treffer.</li>
+                          ) : (
+                            filteredProducts.map((p) => (
+                              <li key={p.id}>
+                                <button
+                                  type="button"
+                                  className="w-full px-2 py-1.5 text-left text-sm hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
+                                  onClick={() => selectProduct(i, p)}
+                                >
+                                  {str(p.name) || str(p.default_code) || `#${p.id}`}
+                                  {p.list_price != null && (
+                                    <span className="ml-2 text-stone-500">
+                                      {Number(p.list_price).toFixed(2)} EUR
+                                    </span>
+                                  )}
+                                </button>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      </div>,
+                      document.body
+                    )}
                 </td>
                 <td className="p-2 text-right">
                   <input
