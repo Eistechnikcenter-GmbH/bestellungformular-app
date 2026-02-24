@@ -38,13 +38,23 @@ function CalendarIcon() {
   );
 }
 
-export function SignatureDateSection() {
-  const [dateValue, setDateValue] = useState<string>(() => getTodayISO());
-  const [displayInput, setDisplayInput] = useState<string>(() => formatDDMMYYYY(getTodayISO()));
+type SignatureDateSectionProps = {
+  /** Controlled: ISO date YYYY-MM-DD */
+  value?: string;
+  onChange?: (iso: string) => void;
+};
+
+export function SignatureDateSection({ value, onChange }: SignatureDateSectionProps = {}) {
+  const isControlled = value !== undefined && onChange !== undefined;
+  const [internalValue, setInternalValue] = useState<string>(() => getTodayISO());
+  const dateValue = isControlled ? value! : internalValue;
+  const setDateValue = isControlled ? onChange! : setInternalValue;
+
+  const [displayInput, setDisplayInput] = useState<string>(() => formatDDMMYYYY(dateValue || getTodayISO()));
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setDisplayInput(formatDDMMYYYY(dateValue));
+    setDisplayInput(formatDDMMYYYY(dateValue || ""));
   }, [dateValue]);
 
   const openCalendar = () => {

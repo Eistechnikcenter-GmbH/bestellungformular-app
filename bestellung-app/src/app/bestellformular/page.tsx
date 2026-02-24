@@ -28,15 +28,12 @@ export default async function BestellformularPage() {
           </h1>
         </div>
 
-        <div className="mb-4 h-10 overflow-hidden rounded-t-xl bg-stone-800">
-          <div className="flex h-full items-center justify-end pr-4">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold tracking-wide text-white">
-                E/C
-              </span>
-              <span className="text-xs text-stone-300">Eistechnikcenter</span>
-            </div>
-          </div>
+        <div className="mb-4 w-full overflow-hidden rounded-t-xl">
+          <img
+            src="/images/bestellung-header.svg"
+            alt=""
+            className="h-auto w-full object-cover object-left"
+          />
         </div>
 
         {error && (
@@ -46,6 +43,14 @@ export default async function BestellformularPage() {
         )}
 
         <OrderForm leads={leads} />
+
+        <div className="mt-6 w-full overflow-hidden rounded-b-xl">
+          <img
+            src="/images/bestellung-footer.svg"
+            alt=""
+            className="h-auto w-full object-cover object-left"
+          />
+        </div>
       </div>
     </div>
   );

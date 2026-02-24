@@ -57,9 +57,21 @@ type Props = {
   products: OdooProduct[];
   lines: OrderLine[];
   onLinesChange: (lines: OrderLine[]) => void;
+  liefertermin?: string;
+  ruhetage?: string;
+  onLieferterminChange?: (v: string) => void;
+  onRuhetageChange?: (v: string) => void;
 };
 
-export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
+export function OrderLinesSection({
+  products,
+  lines,
+  onLinesChange,
+  liefertermin = "",
+  ruhetage = "",
+  onLieferterminChange,
+  onRuhetageChange,
+}: Props) {
   const [openDropdownRow, setOpenDropdownRow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -287,6 +299,8 @@ export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
           </label>
           <input
             type="text"
+            value={liefertermin}
+            onChange={(e) => onLieferterminChange?.(e.target.value)}
             placeholder="z. B. schnellstmöglich"
             className="w-full border-0 border-b border-stone-300 bg-transparent px-0 py-1 text-sm focus:border-stone-500 focus:outline-none"
           />
@@ -297,6 +311,8 @@ export function OrderLinesSection({ products, lines, onLinesChange }: Props) {
           </label>
           <input
             type="text"
+            value={ruhetage}
+            onChange={(e) => onRuhetageChange?.(e.target.value)}
             placeholder="z. B. keine"
             className="w-full border-0 border-b border-stone-300 bg-transparent px-0 py-1 text-sm focus:border-stone-500 focus:outline-none"
           />
