@@ -421,7 +421,7 @@ function drawPage1(
   doc.text("Zzgl. Anlieferung, ebenerdiger Einbringung, Aufstellung, Inbetriebnahme, Funktionskontrolle und Einweisung beim Kunden vor Ort.", MARGIN, y, { maxWidth: PAGE_WIDTH - 2 * MARGIN });
   y += 6;
   doc.setFont(font, "bold");
-  doc.text(data.option1 ?? "• pauschal € 380,-", MARGIN, y);
+  doc.text(data.option1 ?? "• Pauschale € 380,-  (Lieferkosten, Inbetriebnahme, Einarbeitung)", MARGIN, y);
   y += 3;
   doc.text(data.option2 ?? "* 3 Monate mietfreie Startphase", MARGIN, y);
   y += 3;

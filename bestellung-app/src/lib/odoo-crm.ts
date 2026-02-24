@@ -121,7 +121,7 @@ export async function fetchCrmLeads(): Promise<CrmRow[]> {
         zip: strOrUndef(p.zip),
         email: strOrUndef(p.email),
         phone: strOrUndef(p.phone),
-        geburtstag: strOrUndef((p as Record<string, unknown>).x_studio_geburtstag),
+        geburtstag: strOrUndef(p.x_studio_geburtstag),
       });
     }
   }

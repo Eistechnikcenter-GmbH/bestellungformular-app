@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppShell } from "./AppShell";
 
 export const metadata: Metadata = {
   title: "Bestellung | Eistechnikcenter",
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="de">
       <body className="min-h-screen bg-stone-100 text-stone-800 antialiased">
-        {children}
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
