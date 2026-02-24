@@ -1,6 +1,6 @@
 "use client";
 
-export const DEFAULT_OPTION_1 = "pauschal € 380,-";
+export const DEFAULT_OPTION_1 = "• Pauschale € 380,-  (Lieferkosten, Inbetriebnahme, Einarbeitung)";
 export const DEFAULT_OPTION_2 = "* 3 Monate mietfreie Startphase";
 export const DEFAULT_OPTION_3 =
   "1 Starterpaket für 1000 Eis inkl. Becher / Waffeln kostenlos";

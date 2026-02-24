@@ -11,9 +11,11 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const FONT_SIZE = 7;
-const HEADER_FONT_SIZE = 8;
+const FONT_SIZE = 6.5;
+const HEADER_FONT_SIZE = 7.5;
 const SMALL = 6;
+/** Table header and body text. */
+const TABLE_FONT_SIZE = 6;
 /** Page 2 AGB: body font size in pt – kleiner = weniger Platz, mehr Text pro Seite */
 const AGB_BODY_SIZE = 6;
 /** Abstand zwischen den zwei AGB-Spalten (mm). Kleiner = breitere Textblöcke, mehr Text pro Zeile. */
@@ -27,6 +29,8 @@ const PAGE_HEIGHT = 297;
 
 /** Header SVG aspect (viewBox): width 678, height ~62.25 → height in mm for 210mm width */
 const HEADER_HEIGHT_MM = (62.25 / 678) * PAGE_WIDTH;
+/** Set to 1.0 for header/footer flush to edges; <1 to shrink logo band (e.g. 0.85). */
+const LOGO_DISPLAY_SCALE = 1.0;
 /** Footer SVG aspect: width 678, height 11.25 */
 const FOOTER_HEIGHT_MM = (11.25 / 678) * PAGE_WIDTH;
 /** Bleed (mm) so header/footer images extend past left/right edges and clip flush. */
@@ -55,15 +59,21 @@ const CROSS2_Y_OFFSET_MM = -5;
 const CROSS3_X_MM = 132;
 const CROSS3_Y_OFFSET_MM = -5;
 
-/** Scale factor for SVG→PNG conversion (higher = sharper header/footer, less pixelation). */
-const SVG_TO_PNG_SCALE = 3;
+/** Scale for header/footer SVG→raster (lower = smaller PDF; 1.25 keeps logo sharp, PNG stays smaller). */
+const SVG_HEADER_FOOTER_SCALE = 1.25;
+/** Scale for small icons (e.g. cross). */
+const SVG_ICON_SCALE = 2;
 
 /**
- * Load SVG from URL and convert to PNG data URL (browser only).
- * - Default: SVG_TO_PNG_SCALE × natural size (for header/footer).
- * - If maxSizePx is set, rasterize at that max width/height to keep file small (e.g. for cross icon).
+ * Load SVG from URL and convert to image data URL (browser only).
+ * - For header/footer: raster at SVG_HEADER_FOOTER_SCALE, output JPEG to reduce PDF size.
+ * - If maxSizePx is set, rasterize at that max width/height (e.g. for cross icon), output PNG.
  */
-async function svgUrlToPngDataUrl(url: string, maxSizePx?: number): Promise<string> {
+async function svgToDataUrl(
+  url: string,
+  options: { maxSizePx?: number; format?: "png" | "jpeg"; jpegQuality?: number }
+): Promise<string> {
+  const { maxSizePx, format = "png", jpegQuality = 0.9 } = options;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load SVG: ${url}`);
   const blob = await res.blob();
@@ -73,8 +83,9 @@ async function svgUrlToPngDataUrl(url: string, maxSizePx?: number): Promise<stri
     img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
-        let w = img.naturalWidth * SVG_TO_PNG_SCALE;
-        let h = img.naturalHeight * SVG_TO_PNG_SCALE;
+        const scale = maxSizePx != null ? 2 : SVG_HEADER_FOOTER_SCALE;
+        let w = Math.round(img.naturalWidth * scale);
+        let h = Math.round(img.naturalHeight * scale);
         if (maxSizePx != null && (w > maxSizePx || h > maxSizePx)) {
           const r = Math.min(maxSizePx / w, maxSizePx / h);
           w = Math.round(w * r);
@@ -89,7 +100,10 @@ async function svgUrlToPngDataUrl(url: string, maxSizePx?: number): Promise<stri
           return;
         }
         ctx.drawImage(img, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL("image/png");
+        const dataUrl =
+          format === "jpeg"
+            ? canvas.toDataURL("image/jpeg", jpegQuality)
+            : canvas.toDataURL("image/png");
         URL.revokeObjectURL(blobUrl);
         resolve(dataUrl);
       } catch (e) {
@@ -103,6 +117,11 @@ async function svgUrlToPngDataUrl(url: string, maxSizePx?: number): Promise<stri
     };
     img.src = blobUrl;
   });
+}
+
+/** PNG data URL for header (JPEG would blur logo); we use smaller scale to reduce size. */
+async function svgUrlToPngDataUrl(url: string, maxSizePx?: number): Promise<string> {
+  return svgToDataUrl(url, { maxSizePx, format: "png" });
 }
 
 let cachedImages: Page1Images | null = null;
@@ -161,6 +180,7 @@ export function registerPoppinsInDoc(
 /**
  * Load header/footer SVGs and convert to PNG data URLs (browser only).
  * Result is cached so preview and download can reuse without refetching.
+ * PNG keeps transparency (JPEG would turn transparent areas black). Lower scale keeps file size down.
  */
 export async function loadHeaderFooterImages(): Promise<Page1Images> {
   if (cachedImages?.headerDataUrl && cachedImages?.footerDataUrl) return cachedImages;
@@ -168,12 +188,11 @@ export async function loadHeaderFooterImages(): Promise<Page1Images> {
   try {
     const base = window.location.origin;
     const [headerDataUrl, footerDataUrl, crossDataUrl] = await Promise.all([
-      svgUrlToPngDataUrl(`${base}/images/bestellung-header.svg`),
-      svgUrlToPngDataUrl(`${base}/images/bestellung-footer.svg`),
-      // Cross is small on page; cap size so PDF stays small (cross.svg can contain huge embedded images).
-      svgUrlToPngDataUrl(`${base}/signing/cross.svg`, 200).catch(() => undefined),
+      svgToDataUrl(`${base}/images/bestellung-header.svg`, { format: "png" }),
+      svgToDataUrl(`${base}/images/bestellung-footer.svg`, { format: "png" }),
+      svgToDataUrl(`${base}/signing/cross.svg`, { maxSizePx: 150, format: "png" }).catch(() => undefined),
     ]);
-    cachedImages = { headerDataUrl, footerDataUrl, crossDataUrl };
+    cachedImages = { headerDataUrl, footerDataUrl, crossDataUrl, headerFormat: "PNG", footerFormat: "PNG" };
     return cachedImages;
   } catch {
     return {};
@@ -233,6 +252,8 @@ export type Page1Images = {
   footerDataUrl?: string;
   /** Yellow cross (cross.svg) for signature placeholders. */
   crossDataUrl?: string;
+  headerFormat?: "PNG" | "JPEG";
+  footerFormat?: "PNG" | "JPEG";
 };
 
 const PDF_FONT = "Poppins" as const;
@@ -248,15 +269,17 @@ function drawPage1(
 
   // Header: use high-res PNG (from SVG), drawn with bleed so it’s flush with top/left/right
   if (images?.headerDataUrl) {
+    const headerW = PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM;
+    const headerH = HEADER_HEIGHT_MM + HEADER_FOOTER_BLEED_MM;
     doc.addImage(
       images.headerDataUrl,
-      "PNG",
+      images.headerFormat ?? "PNG",
       -HEADER_FOOTER_BLEED_MM,
       0,
-      PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM,
-      HEADER_HEIGHT_MM + HEADER_FOOTER_BLEED_MM
+      headerW,
+      headerH
     );
-    y = HEADER_HEIGHT_MM + 4;
+    y = headerH + 4;
   } else {
     doc.setFillColor(229, 229, 229);
     doc.rect(0, 0, PAGE_WIDTH, 6, "F");
@@ -347,16 +370,22 @@ function drawPage1(
   line(doc, y + 1, col1X + labelW, col1X + labelW + fieldW);
   y += 10;
 
-  // Order table
+  // Order table: 0 Stück = note row → empty Stück and empty MwSt. Light grey lines between rows. Summe row at bottom.
   doc.setFontSize(FONT_SIZE);
-  const tableData = (data.lines ?? []).map((row) => [
-    String(row.stueck ?? ""),
-    row.artikel ?? "",
-    row.netto ?? "",
-    row.mwst != null ? `${row.mwst} %` : "",
-    row.brutto > 0 ? row.brutto.toFixed(2) : "",
-  ]);
-  if (tableData.length === 0) tableData.push(["", "", "", "", ""]);
+  const lines = data.lines ?? [];
+  const tableData = lines.map((row) => {
+    const isNote = row.stueck === 0;
+    return [
+      isNote ? "" : String(row.stueck ?? ""),
+      row.artikel ?? "",
+      row.netto ?? "",
+      isNote ? "" : (row.mwst != null ? `${row.mwst} %` : ""),
+      row.brutto > 0 ? row.brutto.toFixed(2) : "",
+    ];
+  });
+  const totalBrutto = lines.reduce((sum, row) => sum + (row.brutto ?? 0), 0);
+  tableData.push(["", "", "Summe", "", totalBrutto > 0 ? totalBrutto.toFixed(2) : ""]);
+  if (tableData.length === 1) tableData.unshift(["", "", "", "", ""]); // header + summe only → add one empty row
 
   autoTable(doc, {
     startY: y,
@@ -364,7 +393,12 @@ function drawPage1(
     body: tableData,
     margin: { left: MARGIN },
     theme: "plain",
-    headStyles: { fillColor: [245, 245, 245], fontStyle: "bold" },
+    headStyles: { fillColor: [245, 245, 245], fontStyle: "bold", fontSize: TABLE_FONT_SIZE },
+    bodyStyles: {
+      fontSize: TABLE_FONT_SIZE,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.12,
+    },
     columnStyles: {
       0: { cellWidth: 18 },
       1: { cellWidth: 60 },
@@ -372,7 +406,14 @@ function drawPage1(
       3: { cellWidth: 22 },
       4: { cellWidth: 38 },
     },
+    didDrawCell: (cell) => {
+      if (cell.section === "body" && cell.row.index === tableData.length - 1) {
+        doc.setFont(font, "bold");
+        doc.setFontSize(TABLE_FONT_SIZE);
+      }
+    },
   });
+  doc.setFont(font, "normal");
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
   // Delivery
@@ -423,7 +464,7 @@ function drawPage1(
   doc.setFont(font, "bold");
   doc.text(data.option1 ?? "• Pauschale € 380,-  (Lieferkosten, Inbetriebnahme, Einarbeitung)", MARGIN, y);
   y += 3;
-  doc.text(data.option2 ?? "* 3 Monate mietfreie Startphase", MARGIN, y);
+  doc.text(data.option2 ?? "*3 Monate mietfreie Startphase", MARGIN, y);
   y += 3;
   doc.text(data.option3 ?? "• 1 Starterpaket für 1000 Eis inkl. Becher / Waffeln kostenlos", MARGIN, y, { maxWidth: PAGE_WIDTH - 2 * MARGIN });
   y += 9;
@@ -487,14 +528,18 @@ function drawPage1(
   // Footer: optional footer SVG, then signature line and labels
   const footerY = PAGE_HEIGHT - FOOTER_HEIGHT_MM - 18;
   if (y > footerY) y = footerY;
+  // Footer: black+red band flush to bottom and sides (integrated into page corners).
   if (images?.footerDataUrl) {
+    const footerW = PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM;
+    const footerH = FOOTER_HEIGHT_MM + FOOTER_BOTTOM_BLEED_MM;
+    const footerImgY = PAGE_HEIGHT - footerH;
     doc.addImage(
       images.footerDataUrl,
-      "PNG",
+      images.footerFormat ?? "PNG",
       -HEADER_FOOTER_BLEED_MM,
-      PAGE_HEIGHT - FOOTER_HEIGHT_MM - FOOTER_BOTTOM_BLEED_MM,
-      PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM,
-      FOOTER_HEIGHT_MM + FOOTER_BOTTOM_BLEED_MM
+      footerImgY,
+      footerW,
+      footerH
     );
   }
   if (!images?.footerDataUrl) {
@@ -665,15 +710,17 @@ function drawPage2(
 ) {
   doc.addPage();
 
-  // Header (same as page 1, with bleed so flush with top/left/right)
+  // Header: same as page 1, flush to top and sides
   if (images?.headerDataUrl) {
+    const headerW = PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM;
+    const headerH = HEADER_HEIGHT_MM + HEADER_FOOTER_BLEED_MM;
     doc.addImage(
       images.headerDataUrl,
-      "PNG",
+      images.headerFormat ?? "PNG",
       -HEADER_FOOTER_BLEED_MM,
       0,
-      PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM,
-      HEADER_HEIGHT_MM + HEADER_FOOTER_BLEED_MM
+      headerW,
+      headerH
     );
   }
 
@@ -690,7 +737,8 @@ function drawPage2(
   const lineHeight = 2.9;     // war 3.2 – kleiner = mehr Zeilen pro Block
   const afterBlock = 2;     // war 2.5 – weniger Abstand zwischen §-Blöcken
 
-  let y = images?.headerDataUrl ? HEADER_HEIGHT_MM + 4 : 18;
+  const headerH = HEADER_HEIGHT_MM + HEADER_FOOTER_BLEED_MM;
+  let y = images?.headerDataUrl ? headerH + 4 : 18;
   doc.setFont(font, "bold");
   doc.setFontSize(titleSize);
   doc.text(AGB_PAGE_TITLE, PAGE_WIDTH / 2, 30, { align: "center" });
@@ -786,15 +834,18 @@ function drawPage2(
   doc.setFontSize(bodySize);
   col2Y = drawJustifiedBlock(doc, AGB_10_TEXT, col2X, col2Y, colWidth, lineHeight) + afterBlock;
 
-  // Footer (same as page 1: thin bar, full width, flush left/right/bottom)
+  // Footer: flush to bottom and sides (same as page 1)
   if (images?.footerDataUrl) {
+    const footerW = PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM;
+    const footerH = FOOTER_HEIGHT_MM + FOOTER_BOTTOM_BLEED_MM;
+    const footerY = PAGE_HEIGHT - footerH;
     doc.addImage(
       images.footerDataUrl,
-      "PNG",
+      images.footerFormat ?? "PNG",
       -HEADER_FOOTER_BLEED_MM,
-      PAGE_HEIGHT - FOOTER_HEIGHT_MM - FOOTER_BOTTOM_BLEED_MM,
-      PAGE_WIDTH + 2 * HEADER_FOOTER_BLEED_MM,
-      FOOTER_HEIGHT_MM + FOOTER_BOTTOM_BLEED_MM
+      footerY,
+      footerW,
+      footerH
     );
   }
   const agbSignatureLineY = PAGE_HEIGHT - 20;
