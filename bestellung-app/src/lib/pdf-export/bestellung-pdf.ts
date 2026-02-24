@@ -193,7 +193,6 @@ export type BestellungPdfData = {
   adresszusatz?: string;
   telefon?: string;
   mobil?: string;
-  fax?: string;
   email?: string;
   /** Lieferadresse */
   lieferPlzOrt?: string;

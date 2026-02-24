@@ -11,6 +11,13 @@ function getRowPhone(row: CrmRow): string {
   return str(row.phone) || "";
 }
 
+/** Convert Odoo date YYYY-MM-DD to German display DD.MM.YYYY. */
+function toGermanDate(iso: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso.trim())) return iso;
+  const [y, m, d] = iso.trim().split("-");
+  return `${d}.${m}.${y}`;
+}
+
 export type BuyerData = {
   firma: string;
   seit: string;
@@ -23,7 +30,6 @@ export type BuyerData = {
   adresszusatz: string;
   telefon: string;
   mobil: string;
-  fax: string;
   email: string;
   lieferPlzOrt: string;
   lieferStrasse: string;
@@ -42,7 +48,6 @@ const emptyBuyer: BuyerData = {
   adresszusatz: "",
   telefon: "",
   mobil: "",
-  fax: "",
   email: "",
   lieferPlzOrt: "",
   lieferStrasse: "",
@@ -50,30 +55,37 @@ const emptyBuyer: BuyerData = {
 };
 
 function leadToBuyer(row: CrmRow): BuyerData {
-  const city = str(row.city);
-  const zip = str(row.zip);
+  const p = row.partner;
+  const city = p?.city ?? str(row.city);
+  const zip = p?.zip ?? str(row.zip);
   const plzOrt = [zip, city].filter(Boolean).join(" ");
-  const contact = str(row.contact_name).trim();
-  const parts = contact.split(/\s+/);
+  const fullName = (p?.name ?? str(row.contact_name)).trim();
+  const parts = fullName.split(/\s+/).filter(Boolean);
   const vorname = parts[0] ?? "";
   const name = parts.slice(1).join(" ") ?? "";
+  const firma = str(row.partner_name) || (p?.name ?? "");
+  const strasse = p?.street ?? str(row.street);
+  const adresszusatz = p?.street2 ?? str(row.street2);
+  const telefon = p?.phone ?? getRowPhone(row);
+  const mobil = p?.mobile ?? "";
+  const email = p?.email ?? str(row.email_from);
+  const gebDatum = p?.geburtstag ? toGermanDate(p.geburtstag) : "";
   return {
-    firma: str(row.partner_name),
+    firma,
     seit: "",
     branche: "",
-    name: name || str(row.partner_name),
-    vorname: vorname,
-    gebDatum: "",
+    name: name || firma,
+    vorname,
+    gebDatum,
     plzOrt,
-    strasseHausnummer: str(row.street),
-    adresszusatz: str(row.street2),
-    telefon: getRowPhone(row),
-    mobil: "",
-    fax: "",
-    email: str(row.email_from),
+    strasseHausnummer: strasse,
+    adresszusatz,
+    telefon,
+    mobil,
+    email,
     lieferPlzOrt: plzOrt,
-    lieferStrasse: str(row.street),
-    lieferTelefon: getRowPhone(row),
+    lieferStrasse: strasse,
+    lieferTelefon: telefon || mobil,
   };
 }
 
@@ -201,7 +213,6 @@ export function BuyerSection({ leads, buyer, onBuyerChange }: Props) {
           <Field label="Adresszusatz" value={buyer.adresszusatz} onChange={(v) => onBuyerChange({ ...buyer, adresszusatz: v })} />
           <Field label="Telefon" value={buyer.telefon} onChange={(v) => onBuyerChange({ ...buyer, telefon: v })} />
           <Field label="Mobil" value={buyer.mobil} onChange={(v) => onBuyerChange({ ...buyer, mobil: v })} />
-          <Field label="Fax" value={buyer.fax} onChange={(v) => onBuyerChange({ ...buyer, fax: v })} />
         </div>
         <div className="mt-2 sm:col-span-3">
           <Field label="E-Mail Adresse" value={buyer.email} onChange={(v) => onBuyerChange({ ...buyer, email: v })} fullWidth />
