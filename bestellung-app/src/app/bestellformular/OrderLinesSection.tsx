@@ -53,6 +53,15 @@ function PlusIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" aria-hidden>
+      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 type Props = {
   products: OdooProduct[];
   lines: OrderLine[];
@@ -115,6 +124,10 @@ export function OrderLinesSection({
     onLinesChange([...lines, { ...emptyLine }]);
   };
 
+  const deleteLine = (rowIndex: number) => {
+    onLinesChange(lines.filter((_, i) => i !== rowIndex));
+  };
+
   const updateLine = (rowIndex: number, upd: Partial<OrderLine>) => {
     const next = [...lines];
     next[rowIndex] = { ...next[rowIndex], ...upd };
@@ -168,14 +181,13 @@ export function OrderLinesSection({
               <th className="p-2 text-left font-medium text-stone-600">Stück</th>
               <th className="p-2 text-left font-medium text-stone-600">Artikel</th>
               <th className="p-2 text-right font-medium text-stone-600">Netto-Preis in EUR</th>
-              <th className="p-2 text-right font-medium text-stone-600">MwSt.</th>
-              <th className="p-2 text-right font-medium text-stone-600">Brutto-Preis in EUR</th>
+              <th className="w-10 p-2" aria-label="Zeile löschen" />
             </tr>
           </thead>
           <tbody>
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="border-b border-stone-200 p-4 text-center text-stone-500">
+                <td colSpan={4} className="border-b border-stone-200 p-4 text-center text-stone-500">
                   Keine Positionen. Klicken Sie auf „Zeile hinzufügen“, um eine Position einzutragen.
                 </td>
               </tr>
@@ -272,24 +284,39 @@ export function OrderLinesSection({
                     className="w-32 rounded border border-stone-300 px-2 py-1 text-right focus:border-stone-500 focus:outline-none"
                   />
                 </td>
-                <td className="p-2 text-right">
-                  <input
-                    type="number"
-                    step={0.01}
-                    min={0}
-                    value={line.mwst ? String(line.mwst) : ""}
-                    onChange={(e) => updateLine(i, { mwst: parseFloat(e.target.value) || 0 })}
-                    className="w-16 rounded border border-stone-300 px-2 py-1 text-right focus:border-stone-500 focus:outline-none"
-                  />
-                  %
-                </td>
-                <td className="p-2 text-right font-medium tabular-nums">
-                  {line.brutto > 0 ? line.brutto.toFixed(2) : "—"}
+                <td className="p-2">
+                  <button
+                    type="button"
+                    onClick={() => deleteLine(i)}
+                    title="Zeile entfernen"
+                    className="rounded p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                    aria-label="Zeile entfernen"
+                  >
+                    <TrashIcon />
+                  </button>
                 </td>
               </tr>
             ))
             )}
           </tbody>
+          {lines.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-stone-300 bg-stone-50 font-medium">
+                <td className="p-2" />
+                <td className="p-2 text-stone-700">Sonderpreis</td>
+                <td className="p-2 text-right tabular-nums text-stone-800">
+                  {(() => {
+                    const total = lines.reduce((sum, row) => {
+                      const n = parseNetto(row.netto ?? "");
+                      return sum + (Number.isFinite(n) ? n : 0);
+                    }, 0);
+                    return total > 0 ? total.toFixed(2) : "—";
+                  })()}
+                </td>
+                <td className="w-10 p-2" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       <div className="mt-12 grid gap-4 sm:grid-cols-2">

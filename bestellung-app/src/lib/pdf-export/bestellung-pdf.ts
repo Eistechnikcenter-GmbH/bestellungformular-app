@@ -27,6 +27,48 @@ const MARGIN = 15;
 const PAGE_WIDTH = 210;
 const PAGE_HEIGHT = 297;
 
+/** Format number with German thousands separator (.) and decimal comma (,). e.g. 49265.5 → "49.265,50" */
+function formatNumberGerman(value: number): string {
+  const [intPart, decPart] = value.toFixed(2).split(".");
+  const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${withDots},${decPart}`;
+}
+
+/** Convert integer 0..999 to German words (eins/zwei/... for 1/2; "ein" used in compounds). */
+function smallNumberToGerman(n: number, useEins: boolean): string {
+  if (n === 0) return "null";
+  const ones = ["", "ein", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun"];
+  const onesEins = ["", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun"];
+  const teens = ["zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn"];
+  const tens = ["", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig", "neunzig"];
+  const o = useEins ? onesEins : ones;
+  if (n < 10) return o[n];
+  if (n < 20) return teens[n - 10];
+  if (n < 100) {
+    const t = Math.floor(n / 10);
+    const u = n % 10;
+    return u === 0 ? tens[t] : o[u] + "und" + tens[t];
+  }
+  const h = Math.floor(n / 100);
+  const rest = n % 100;
+  const hundert = h === 1 ? "hundert" : o[h] + "hundert";
+  return rest === 0 ? hundert : hundert + smallNumberToGerman(rest, useEins);
+}
+
+/** Convert integer amount (0 to 999.999) to German words for "X Euro". */
+function numberToGermanWords(value: number): string {
+  const n = Math.max(0, Math.floor(value));
+  if (n === 0) return "null Euro";
+  if (n > 999999) return value.toLocaleString("de-DE") + " Euro"; // fallback for huge numbers
+  if (n < 1000) return smallNumberToGerman(n, true) + " Euro";
+  const thousands = Math.floor(n / 1000);
+  const rest = n % 1000;
+  const tPart = smallNumberToGerman(thousands, false) + "tausend";
+  const rPart = rest === 0 ? "" : smallNumberToGerman(rest, true);
+  const words = rPart ? tPart + rPart : tPart;
+  return words + " Euro";
+}
+
 /** Header SVG aspect (viewBox): width 678, height ~62.25 → height in mm for 210mm width */
 const HEADER_HEIGHT_MM = (62.25 / 678) * PAGE_WIDTH;
 /** Set to 1.0 for header/footer flush to edges; <1 to shrink logo band (e.g. 0.85). */
@@ -370,28 +412,51 @@ function drawPage1(
   line(doc, y + 1, col1X + labelW, col1X + labelW + fieldW);
   y += 10;
 
-  // Order table: 0 Stück = note row → empty Stück and empty MwSt. Light grey lines between rows. Summe row at bottom.
+  // Order table: Stück, Artikel, Netto-Preis only. 0 Stück = note row (empty Stück). Light grey lines. Sonderpreis = total netto.
+  // Full content width, German decimal format (comma), right-aligned numbers, € after numeric prices only.
   doc.setFontSize(FONT_SIZE);
   const lines = data.lines ?? [];
+  function parseNettoVal(s: string): number {
+    const n = parseFloat(String(s).trim().replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  /** Format numeric netto for display: German thousands dot + decimal comma; non-numeric returns empty or original string. */
+  function formatNettoDisplay(val: string | number | undefined): string {
+    const s = String(val ?? "").trim();
+    const n = parseFloat(s.replace(",", "."));
+    if (Number.isFinite(n)) return formatNumberGerman(n);
+    return s;
+  }
+  /** True if netto is a number (so we append €). */
+  function isNumericNetto(val: string | number | undefined): boolean {
+    const s = String(val ?? "").trim();
+    const n = parseFloat(s.replace(",", "."));
+    return Number.isFinite(n);
+  }
   const tableData = lines.map((row) => {
     const isNote = row.stueck === 0;
+    const nettoStr = row.netto ?? "";
+    const displayNetto = isNumericNetto(nettoStr)
+      ? `${formatNettoDisplay(nettoStr)} €`
+      : formatNettoDisplay(nettoStr) || nettoStr;
     return [
       isNote ? "" : String(row.stueck ?? ""),
       row.artikel ?? "",
-      row.netto ?? "",
-      isNote ? "" : (row.mwst != null ? `${row.mwst} %` : ""),
-      row.brutto > 0 ? row.brutto.toFixed(2) : "",
+      displayNetto,
     ];
   });
-  const totalBrutto = lines.reduce((sum, row) => sum + (row.brutto ?? 0), 0);
-  tableData.push(["", "", "Summe", "", totalBrutto > 0 ? totalBrutto.toFixed(2) : ""]);
-  if (tableData.length === 1) tableData.unshift(["", "", "", "", ""]); // header + summe only → add one empty row
+  const totalNetto = lines.reduce((sum, row) => sum + parseNettoVal(row.netto ?? ""), 0);
+  const totalDisplay = totalNetto > 0 ? `${formatNumberGerman(totalNetto)} €` : "";
+  tableData.push(["", "Sonderpreis", totalDisplay]);
+  if (tableData.length === 1) tableData.unshift(["", "", ""]);
 
+  const tableContentWidth = PAGE_WIDTH - 2 * MARGIN;
   autoTable(doc, {
     startY: y,
-    head: [["Stück", "Artikel", "Netto-Preis in EUR", "MwSt.", "Brutto-Preis in EUR"]],
+    head: [["Stück", "Artikel", "Netto-Preis in EUR"]],
     body: tableData,
     margin: { left: MARGIN },
+    tableWidth: tableContentWidth,
     theme: "plain",
     headStyles: { fillColor: [245, 245, 245], fontStyle: "bold", fontSize: TABLE_FONT_SIZE },
     bodyStyles: {
@@ -401,10 +466,8 @@ function drawPage1(
     },
     columnStyles: {
       0: { cellWidth: 18 },
-      1: { cellWidth: 60 },
-      2: { cellWidth: 38 },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 38 },
+      1: { cellWidth: tableContentWidth - 18 - 38 },
+      2: { cellWidth: 38, halign: "right" },
     },
     didDrawCell: (cell) => {
       if (cell.section === "body" && cell.row.index === tableData.length - 1) {
@@ -415,6 +478,20 @@ function drawPage1(
   });
   doc.setFont(font, "normal");
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+
+  // Amount in words (below order table)
+  if (totalNetto > 0) {
+    doc.setFontSize(SMALL);
+    doc.setFont(font, "bold");
+    const inWorten = numberToGermanWords(totalNetto);
+    const fullText = "Preis in Worten ausgeschrieben: " + inWorten.charAt(0).toUpperCase() + inWorten.slice(1);
+    doc.text(fullText, PAGE_WIDTH - MARGIN, y, {
+      align: "right",
+      maxWidth: PAGE_WIDTH - 2 * MARGIN,
+    });
+    doc.setFont(font, "normal");
+    y += 6;
+  }
 
   // Delivery
   doc.setFontSize(SMALL);
