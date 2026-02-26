@@ -89,39 +89,9 @@ export function SignatureDateSection({ value, onChange }: SignatureDateSectionPr
 
   return (
     <section className="mb-8 text-sm text-stone-700">
-      <p className="mb-3">
-        Es bestehen keine mündlichen Nebenabreden / Vereinbarungen.
-      </p>
-      <p className="mb-2">
-        Kunde stimmt Bonitätsprüfung (Crefo/Schufa) zu.
-      </p>
-      <div className="mb-6 border-b border-stone-400 pb-1 pt-4">
-        <span className="text-xs text-stone-500">Unterschrift Kunde</span>
-      </div>
+      {/* Contract clauses, Unterschrift Kunde, Widerrufsbelehrung: only in PDF, not on form */}
 
-      <div className="mb-4 text-stone-600">
-        <p className="mb-2 font-medium text-stone-800">Widerrufsbelehrung</p>
-        <p className="mb-2">
-          Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen
-          Vertrag zu widerrufen. Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag
-          an dem Sie oder ein von Ihnen benannter Dritter die Waren in Besitz genommen
-          haben. Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer
-          eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail)
-          über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren.
-        </p>
-        <p className="font-medium text-stone-800">Widerrufsfolgen</p>
-        <p>
-          Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir
-          von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der
-          zusätzlichen Kosten, die sich aus der Wahl einer anderen Art der Lieferung
-          als der von uns angebotenen günstigsten Standardlieferung ergeben), 
-          unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen,
-          an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen
-          ist.
-        </p>
-      </div>
-
-      <div className="mt-8 flex flex-wrap items-end gap-8 border-t border-stone-200 pt-6">
+      <div className="mt-6 flex flex-wrap items-end gap-8 border-t border-stone-200 pt-6">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium text-stone-600">Datum</label>
           <div className="flex items-center gap-1.5 rounded border border-stone-300 bg-white">

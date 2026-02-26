@@ -369,8 +369,8 @@ function drawPage1(
   y += 5;
 
   const col1X = MARGIN;
-  const col2X =110;
-  const labelW = 25;
+  const col2X =105;
+  const labelW = 27;
   const fieldW = 60;
   const rowH = 4;
 

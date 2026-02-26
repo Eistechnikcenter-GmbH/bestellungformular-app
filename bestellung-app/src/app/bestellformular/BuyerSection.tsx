@@ -11,6 +11,15 @@ function getRowPhone(row: CrmRow): string {
   return str(row.phone) || "";
 }
 
+/** First non-empty value (trimmed); contact leads, CRM fills gaps. */
+function firstNonEmpty(...values: (string | undefined | null)[]): string {
+  for (const v of values) {
+    const s = v != null ? String(v).trim() : "";
+    if (s) return s;
+  }
+  return "";
+}
+
 /** Convert Odoo date YYYY-MM-DD to German display DD.MM.YYYY. */
 function toGermanDate(iso: string): string {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso.trim())) return iso;
@@ -56,19 +65,20 @@ const emptyBuyer: BuyerData = {
 
 function leadToBuyer(row: CrmRow): BuyerData {
   const p = row.partner;
-  const city = p?.city ?? str(row.city);
-  const zip = p?.zip ?? str(row.zip);
+  // Contact (partner) is leading; CRM (lead) fills in when contact field is empty.
+  const street = firstNonEmpty(p?.street, str(row.street));
+  const street2 = firstNonEmpty(p?.street2, str(row.street2));
+  const zip = firstNonEmpty(p?.zip, str(row.zip));
+  const city = firstNonEmpty(p?.city, str(row.city));
   const plzOrt = [zip, city].filter(Boolean).join(" ");
-  const fullName = (p?.name ?? str(row.contact_name)).trim();
-  const parts = fullName.split(/\s+/).filter(Boolean);
+  const fullName = firstNonEmpty(p?.name, str(row.contact_name));
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
   const vorname = parts[0] ?? "";
   const name = parts.slice(1).join(" ") ?? "";
-  const firma = str(row.partner_name) || (p?.name ?? "");
-  const strasse = p?.street ?? str(row.street);
-  const adresszusatz = p?.street2 ?? str(row.street2);
-  const telefon = p?.phone ?? getRowPhone(row);
-  const mobil = p?.mobile ?? "";
-  const email = p?.email ?? str(row.email_from);
+  const firma = firstNonEmpty(str(row.partner_name), p?.name) || "";
+  const telefon = firstNonEmpty(p?.phone, getRowPhone(row));
+  const mobil = firstNonEmpty(p?.mobile, "");
+  const email = firstNonEmpty(p?.email, str(row.email_from));
   const gebDatum = p?.geburtstag ? toGermanDate(p.geburtstag) : "";
   return {
     firma,
@@ -78,13 +88,13 @@ function leadToBuyer(row: CrmRow): BuyerData {
     vorname,
     gebDatum,
     plzOrt,
-    strasseHausnummer: strasse,
-    adresszusatz,
+    strasseHausnummer: street,
+    adresszusatz: street2,
     telefon,
     mobil,
     email,
     lieferPlzOrt: plzOrt,
-    lieferStrasse: strasse,
+    lieferStrasse: street,
     lieferTelefon: telefon || mobil,
   };
 }
