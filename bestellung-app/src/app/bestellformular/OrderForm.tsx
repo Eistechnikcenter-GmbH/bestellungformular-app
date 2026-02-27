@@ -8,6 +8,7 @@ import {
   type OrderLine,
 } from "./OrderLinesSection";
 import {
+  OptionsSection,
   defaultOptions,
   type OptionsData,
 } from "./OptionsSection";
@@ -191,7 +192,9 @@ export function OrderForm({ leads }: Props) {
         onRuhetageChange={setRuhetage}
       />
 
-      {/* Optionen + contract clauses: not shown on form; PDF uses defaultOptions via getPdfData() */}
+      <OptionsSection options={options} onOptionsChange={setOptions} />
+
+      {/* Contract clauses (Sollte dieser Vertrag..., etc.): only in PDF, not on form */}
 
       <SignatureDateSection value={datum} onChange={setDatum} />
 
