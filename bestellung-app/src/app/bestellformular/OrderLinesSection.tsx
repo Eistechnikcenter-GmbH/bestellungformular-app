@@ -2,7 +2,10 @@
 
 import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import type { OdooProduct } from "@/lib/odoo-products";
+import {
+  FIXED_PRODUCTS,
+  type SelectableProduct,
+} from "@/lib/bestellformular-products";
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
@@ -12,7 +15,7 @@ const DEFAULT_MWST = 19;
 
 export type OrderLine = {
   stueck: number;
-  productId: number | null;
+  productId: string | null;
   artikel: string;
   /** Netto as entered: number or note (free text). */
   netto: string;
@@ -63,7 +66,9 @@ function TrashIcon() {
 }
 
 type Props = {
-  products: OdooProduct[];
+  customProducts: SelectableProduct[];
+  onAddCustomProduct: (product: SelectableProduct) => void;
+  onRemoveCustomProduct: (id: string) => void;
   lines: OrderLine[];
   onLinesChange: (lines: OrderLine[]) => void;
   liefertermin?: string;
@@ -73,7 +78,9 @@ type Props = {
 };
 
 export function OrderLinesSection({
-  products,
+  customProducts,
+  onAddCustomProduct,
+  onRemoveCustomProduct,
   lines,
   onLinesChange,
   liefertermin = "",
@@ -83,20 +90,24 @@ export function OrderLinesSection({
 }: Props) {
   const [openDropdownRow, setOpenDropdownRow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductPrice, setNewProductPrice] = useState("");
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLTableCellElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const allProducts = useMemo(
+    () => [...FIXED_PRODUCTS, ...customProducts],
+    [customProducts]
+  );
+
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return products.slice(0, 100);
-    return products.filter(
-      (p) =>
-        str(p.name).toLowerCase().includes(q) ||
-        str(p.default_code).toLowerCase().includes(q)
-    ).slice(0, 100);
-  }, [products, search]);
+    if (!q) return allProducts;
+    return allProducts.filter((p) => p.name.toLowerCase().includes(q));
+  }, [allProducts, search]);
 
   useLayoutEffect(() => {
     if (openDropdownRow === null) {
@@ -115,6 +126,9 @@ export function OrderLinesSection({
       if (dropdownRef.current?.contains(target)) return;
       if (containerRef.current?.contains(target)) return;
       setOpenDropdownRow(null);
+      setShowAddProduct(false);
+      setNewProductName("");
+      setNewProductPrice("");
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -145,20 +159,36 @@ export function OrderLinesSection({
     onLinesChange(next);
   };
 
-  const selectProduct = (rowIndex: number, p: OdooProduct) => {
-    const netto =
-      typeof p.list_price === "number"
-        ? String(p.list_price)
-        : "";
+  const selectProduct = (rowIndex: number, p: SelectableProduct) => {
+    const netto = p.price != null ? String(p.price) : "";
     updateLine(rowIndex, {
       productId: p.id,
-      artikel: str(p.name) || str(p.default_code) || "",
+      artikel: p.name,
       netto,
       mwst: DEFAULT_MWST,
     });
     setOpenDropdownRow(null);
     setSearch("");
+    setShowAddProduct(false);
+    setNewProductName("");
+    setNewProductPrice("");
   };
+
+  const handleAddCustomProduct = () => {
+    const name = newProductName.trim();
+    if (!name) return;
+    const priceStr = newProductPrice.trim().replace(",", ".");
+    const price = priceStr ? parseFloat(priceStr) : undefined;
+    const id = `custom-${Date.now()}`;
+    const product: SelectableProduct = { id, name, price: Number.isFinite(price) ? price : undefined };
+    onAddCustomProduct(product);
+    if (openDropdownRow !== null) selectProduct(openDropdownRow, product);
+    setNewProductName("");
+    setNewProductPrice("");
+    setShowAddProduct(false);
+  };
+
+  const isCustomProduct = (id: string) => id.startsWith("custom-");
 
   return (
     <section className="mb-8 pt-6">
@@ -212,7 +242,7 @@ export function OrderLinesSection({
                       type="text"
                       value={line.artikel}
                       onChange={(e) => updateLine(i, { artikel: e.target.value })}
-                      placeholder="Artikel eingeben oder aus Katalog wählen…"
+                      placeholder="Artikel wählen oder eingeben…"
                       className="min-w-0 flex-1 rounded border border-stone-300 px-2 py-1 text-stone-700 placeholder:text-stone-400 focus:border-stone-500 focus:outline-none"
                     />
                     <button
@@ -230,47 +260,112 @@ export function OrderLinesSection({
                     createPortal(
                       <div
                         ref={dropdownRef}
-                        className="max-h-56 overflow-hidden rounded border border-stone-300 bg-white shadow-lg"
+                        className="flex max-h-72 flex-col rounded border border-stone-300 bg-white shadow-lg"
                         style={{
                           position: "fixed",
                           top: dropdownRect.top + 8,
                           left: dropdownRect.left,
-                          width: dropdownRect.width,
+                          width: Math.max(dropdownRect.width, 320),
                           zIndex: 9999,
                         }}
                       >
                         <div className="border-b border-stone-200 p-1">
                           <input
                             type="search"
-                            placeholder="Suchen (Name, Artikelnummer)…"
+                            placeholder="Suchen (Name)…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full rounded border border-stone-200 px-2 py-1.5 text-sm focus:border-stone-400 focus:outline-none"
                             autoFocus
                           />
                         </div>
-                        <ul className="max-h-44 overflow-y-auto py-1">
-                          {filteredProducts.length === 0 ? (
+                        <ul className="max-h-40 flex-1 overflow-y-auto py-1">
+                          {filteredProducts.length === 0 && !showAddProduct ? (
                             <li className="px-2 py-1.5 text-stone-500">Keine Treffer.</li>
                           ) : (
                             filteredProducts.map((p) => (
-                              <li key={p.id}>
+                              <li key={p.id} className="flex items-center gap-1">
                                 <button
                                   type="button"
-                                  className="w-full px-2 py-1.5 text-left text-sm hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
+                                  className="min-w-0 flex-1 px-2 py-1.5 text-left text-sm hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
                                   onClick={() => selectProduct(i, p)}
                                 >
-                                  {str(p.name) || str(p.default_code) || `#${p.id}`}
-                                  {p.list_price != null && (
+                                  {p.name}
+                                  {p.price != null && (
                                     <span className="ml-2 text-stone-500">
-                                      {Number(p.list_price).toFixed(2)} EUR
+                                      {p.price.toFixed(2)} EUR
                                     </span>
                                   )}
                                 </button>
+                                {isCustomProduct(p.id) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onRemoveCustomProduct(p.id);
+                                    }}
+                                    title="Produkt entfernen"
+                                    className="shrink-0 rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-red-600 focus:outline-none"
+                                    aria-label="Produkt entfernen"
+                                  >
+                                    <TrashIcon />
+                                  </button>
+                                )}
                               </li>
                             ))
                           )}
                         </ul>
+                        {showAddProduct ? (
+                          <div className="border-t border-stone-200 p-2 space-y-2">
+                            <input
+                              type="text"
+                              value={newProductName}
+                              onChange={(e) => setNewProductName(e.target.value)}
+                              placeholder="Name des Produkts"
+                              className="w-full rounded border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-500 focus:outline-none"
+                              autoFocus
+                            />
+                            <input
+                              type="text"
+                              value={newProductPrice}
+                              onChange={(e) => setNewProductPrice(e.target.value)}
+                              placeholder="Preis (optional)"
+                              className="w-full rounded border border-stone-300 px-2 py-1.5 text-sm focus:border-stone-500 focus:outline-none"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleAddCustomProduct}
+                                disabled={!newProductName.trim()}
+                                className="rounded bg-stone-700 px-2 py-1.5 text-sm font-medium text-white hover:bg-stone-600 disabled:opacity-50 focus:outline-none"
+                              >
+                                Hinzufügen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowAddProduct(false);
+                                  setNewProductName("");
+                                  setNewProductPrice("");
+                                }}
+                                className="rounded border border-stone-300 bg-white px-2 py-1.5 text-sm text-stone-700 hover:bg-stone-50 focus:outline-none"
+                              >
+                                Abbrechen
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-t border-stone-200 p-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowAddProduct(true)}
+                              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
+                            >
+                              <PlusIcon />
+                              Neues Produkt hinzufügen
+                            </button>
+                          </div>
+                        )}
                       </div>,
                       document.body
                     )}

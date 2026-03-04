@@ -14,7 +14,11 @@ import {
 } from "./OptionsSection";
 import { SignatureDateSection } from "./SignatureDateSection";
 import type { CrmRow } from "@/lib/odoo-crm";
-import type { OdooProduct } from "@/lib/odoo-products";
+import {
+  CUSTOM_PRODUCTS_STORAGE_KEY,
+  parseCustomProducts,
+  type SelectableProduct,
+} from "@/lib/bestellformular-products";
 import {
   downloadBestellungPdf,
   buildBestellungPdf,
@@ -73,7 +77,7 @@ function getTodayISO(): string {
 export function OrderForm({ leads }: Props) {
   const [verkaufer, setVerkaufer] = useState<string>("");
   const [buyer, setBuyer] = useState<BuyerData>(emptyBuyer);
-  const [products, setProducts] = useState<OdooProduct[]>([]);
+  const [customProducts, setCustomProducts] = useState<SelectableProduct[]>([]);
   const [lines, setLines] = useState<OrderLine[]>(getEmptyOrderLines());
   const [options, setOptions] = useState<OptionsData>(defaultOptions);
   const [liefertermin, setLiefertermin] = useState("");
@@ -138,11 +142,35 @@ export function OrderForm({ leads }: Props) {
     };
   }, [previewUrl]);
 
+  // Load custom products from localStorage once on mount (browser only).
   useEffect(() => {
-    fetch("/api/products")
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setProducts)
-      .catch(() => setProducts([]));
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(CUSTOM_PRODUCTS_STORAGE_KEY);
+    const parsed = parseCustomProducts(stored);
+    if (parsed.length > 0) {
+      setCustomProducts(parsed);
+    }
+  }, []);
+
+  // Persist custom products whenever they change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        CUSTOM_PRODUCTS_STORAGE_KEY,
+        JSON.stringify(customProducts)
+      );
+    } catch {
+      // Ignore storage errors (e.g. private mode)
+    }
+  }, [customProducts]);
+
+  const addCustomProduct = useCallback((product: SelectableProduct) => {
+    setCustomProducts((prev) => [...prev, product]);
+  }, []);
+
+  const removeCustomProduct = useCallback((id: string) => {
+    setCustomProducts((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   return (
@@ -182,15 +210,17 @@ export function OrderForm({ leads }: Props) {
 
       <BuyerSection leads={leads} buyer={buyer} onBuyerChange={setBuyer} />
 
-      <OrderLinesSection
-        products={products}
-        lines={lines}
-        onLinesChange={setLines}
-        liefertermin={liefertermin}
-        ruhetage={ruhetage}
-        onLieferterminChange={setLiefertermin}
-        onRuhetageChange={setRuhetage}
-      />
+        <OrderLinesSection
+          customProducts={customProducts}
+          onAddCustomProduct={addCustomProduct}
+          onRemoveCustomProduct={removeCustomProduct}
+          lines={lines}
+          onLinesChange={setLines}
+          liefertermin={liefertermin}
+          ruhetage={ruhetage}
+          onLieferterminChange={setLiefertermin}
+          onRuhetageChange={setRuhetage}
+        />
 
       <OptionsSection options={options} onOptionsChange={setOptions} />
 
