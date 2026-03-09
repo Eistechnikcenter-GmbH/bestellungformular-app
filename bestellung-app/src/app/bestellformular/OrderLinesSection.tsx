@@ -21,6 +21,8 @@ export type OrderLine = {
   netto: string;
   mwst: number;
   brutto: number;
+  /** If true, this line is a discount / trade-in and its netto is subtracted from the total. */
+  isRabatt?: boolean;
 };
 
 const emptyLine: OrderLine = {
@@ -30,6 +32,11 @@ const emptyLine: OrderLine = {
   netto: "",
   mwst: DEFAULT_MWST,
   brutto: 0,
+};
+
+const emptyRabattLine: OrderLine = {
+  ...emptyLine,
+  isRabatt: true,
 };
 
 /** Parse netto string (allows comma as decimal) to number; NaN if note/text. */
@@ -138,6 +145,10 @@ export function OrderLinesSection({
     onLinesChange([...lines, { ...emptyLine }]);
   };
 
+  const addRabattLine = () => {
+    onLinesChange([...lines, { ...emptyRabattLine }]);
+  };
+
   const deleteLine = (rowIndex: number) => {
     onLinesChange(lines.filter((_, i) => i !== rowIndex));
   };
@@ -194,15 +205,26 @@ export function OrderLinesSection({
     <section className="mb-8 pt-6">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-sm font-bold text-stone-800">Bestellpositionen</h2>
-        <button
-          type="button"
-          onClick={addLine}
-          title="Zeile hinzufügen"
-          className="flex items-center gap-1.5 rounded border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus:outline-none"
-        >
-          <PlusIcon />
-          Zeile hinzufügen
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={addRabattLine}
+            title="Rabatt oder Inzahlungnahme (Betrag wird vom Gesamtpreis abgezogen)"
+            className="flex items-center gap-1.5 rounded border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus:outline-none"
+          >
+            <PlusIcon />
+            Rabatt / Inzahlungnahme
+          </button>
+          <button
+            type="button"
+            onClick={addLine}
+            title="Zeile hinzufügen"
+            className="flex items-center gap-1.5 rounded border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 focus:outline-none"
+          >
+            <PlusIcon />
+            Zeile hinzufügen
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto pt-1" ref={containerRef}>
         <table className="w-full min-w-[600px] border-collapse text-sm">
@@ -242,7 +264,7 @@ export function OrderLinesSection({
                       type="text"
                       value={line.artikel}
                       onChange={(e) => updateLine(i, { artikel: e.target.value })}
-                      placeholder="Artikel wählen oder eingeben…"
+                      placeholder={line.isRabatt ? "z. B. Inzahlungnahme Maschine XY" : "Artikel wählen oder eingeben…"}
                       className="min-w-0 flex-1 rounded border border-stone-300 px-2 py-1 text-stone-700 placeholder:text-stone-400 focus:border-stone-500 focus:outline-none"
                     />
                     <button
@@ -403,9 +425,10 @@ export function OrderLinesSection({
                   {(() => {
                     const total = lines.reduce((sum, row) => {
                       const n = parseNetto(row.netto ?? "");
-                      return sum + (Number.isFinite(n) ? n : 0);
+                      const v = Number.isFinite(n) ? n : 0;
+                      return sum + (row.isRabatt ? -v : v);
                     }, 0);
-                    return total > 0 ? total.toFixed(2) : "—";
+                    return total !== 0 ? total.toFixed(2) : "—";
                   })()}
                 </td>
                 <td className="w-10 p-2" />

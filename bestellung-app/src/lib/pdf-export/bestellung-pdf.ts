@@ -266,6 +266,7 @@ export type BestellungPdfData = {
     netto: string;
     mwst: number;
     brutto: number;
+    isRabatt?: boolean;
   }>;
   /** Delivery / Ruhetage */
   liefertermin?: string;
@@ -436,18 +437,30 @@ function drawPage1(
   const tableData = lines.map((row) => {
     const isNote = row.stueck === 0;
     const nettoStr = row.netto ?? "";
-    const displayNetto = isNumericNetto(nettoStr)
-      ? `${formatNettoDisplay(nettoStr)} €`
-      : formatNettoDisplay(nettoStr) || nettoStr;
+    const isRabatt = !!row.isRabatt;
+    let displayNetto: string;
+    if (isNumericNetto(nettoStr)) {
+      const formatted = formatNettoDisplay(nettoStr);
+      displayNetto = isRabatt ? `- ${formatted} €` : `${formatted} €`;
+    } else {
+      displayNetto = formatNettoDisplay(nettoStr) || nettoStr;
+    }
     return [
       isNote ? "" : String(row.stueck ?? ""),
       row.artikel ?? "",
       displayNetto,
     ];
   });
-  const totalNetto = lines.reduce((sum, row) => sum + parseNettoVal(row.netto ?? ""), 0);
-  const totalDisplay = totalNetto > 0 ? `${formatNumberGerman(totalNetto)} €` : "";
-  tableData.push(["", "Sonderpreis", totalDisplay]);
+  const totalNetto = lines.reduce((sum, row) => {
+    const v = parseNettoVal(row.netto ?? "");
+    return sum + (row.isRabatt ? -v : v);
+  }, 0);
+  const totalDisplay = totalNetto !== 0 ? `${formatNumberGerman(Math.abs(totalNetto))} €` : "";
+  if (totalNetto < 0) {
+    tableData.push(["", "Sonderpreis", `- ${formatNumberGerman(Math.abs(totalNetto))} €`]);
+  } else {
+    tableData.push(["", "Sonderpreis", totalDisplay]);
+  }
   if (tableData.length === 1) tableData.unshift(["", "", ""]);
 
   const tableContentWidth = PAGE_WIDTH - 2 * MARGIN;
@@ -480,10 +493,13 @@ function drawPage1(
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
 
   // Amount in words (below order table)
-  if (totalNetto > 0) {
+  if (totalNetto !== 0) {
     doc.setFontSize(SMALL);
     doc.setFont(font, "bold");
-    const inWorten = numberToGermanWords(totalNetto);
+    const inWorten =
+      totalNetto < 0
+        ? "minus " + numberToGermanWords(Math.abs(totalNetto))
+        : numberToGermanWords(totalNetto);
     const fullText = "Preis in Worten ausgeschrieben: " + inWorten.charAt(0).toUpperCase() + inWorten.slice(1);
     doc.text(fullText, PAGE_WIDTH - MARGIN, y, {
       align: "right",

@@ -100,6 +100,7 @@ export function OrderForm({ leads }: Props) {
       netto: l.netto,
       mwst: l.mwst,
       brutto: l.brutto,
+      isRabatt: l.isRabatt,
     })),
   }), [buyer, liefertermin, ruhetage, datum, options, lines]);
 
