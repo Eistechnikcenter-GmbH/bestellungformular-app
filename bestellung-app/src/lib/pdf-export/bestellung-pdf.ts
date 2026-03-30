@@ -13,7 +13,7 @@ import autoTable from "jspdf-autotable";
 
 const FONT_SIZE = 6.5;
 const HEADER_FONT_SIZE = 7.5;
-const SMALL = 6;
+const SMALL = 7;
 /** Table header and body text. */
 const TABLE_FONT_SIZE = 6;
 /** Page 2 AGB: body font size in pt – kleiner = weniger Platz, mehr Text pro Seite */
@@ -377,8 +377,8 @@ function drawPage1(
 
   const leftLabels = ["Firma", "Name", "PLZ & Ort", "Telefon", "E-Mail Adresse"];
   const leftKeys = ["firma", "name", "plzOrt", "telefon", "email"] as const;
-  const rightLabels = ["seit", "Vorname", "Straße & Hausnummer", "Mobil", "Branche", "Geb.-Datum"];
-  const rightKeys = ["seit", "vorname", "strasseHausnummer", "mobil", "branche", "gebDatum"] as const;
+  const rightLabels = ["seit", "Vorname", "Straße & Hausnr.", "Mobil", "Branche", "Geb.-Datum"];
+  const rightKeys = ["seit", "vorname", "strasseHausnr.", "mobil", "branche", "gebDatum"] as const;
 
   for (let i = 0; i < Math.max(leftLabels.length, rightLabels.length); i++) {
     if (i < leftLabels.length) {
@@ -404,7 +404,7 @@ function drawPage1(
   doc.text("PLZ & Ort", col1X, y);
   doc.text(String(data.lieferPlzOrt ?? ""), col1X + labelW, y);
   line(doc, y + 1, col1X + labelW, col1X + labelW + fieldW);
-  doc.text("Straße & Hausnummer", col2X, y);
+  doc.text("Straße & Hausnr.", col2X, y);
   doc.text(String(data.lieferStrasse ?? ""), col2X + labelW, y);
   line(doc, y + 1, col2X + labelW, col2X + labelW + fieldW);
   y += rowH;
@@ -512,31 +512,31 @@ function drawPage1(
   // Delivery
   doc.setFontSize(SMALL);
   doc.text("Unverbindlicher gewünschter Liefertermin", MARGIN, y);
-  doc.text(String(data.liefertermin ?? "schnellstmöglich"), MARGIN + 48, y);
-  line(doc, y + 1, MARGIN + 46, MARGIN + 70);
+  doc.text(String(data.liefertermin ?? "schnellstmöglich"), MARGIN + 55, y);
+  line(doc, y + 1, MARGIN + 53, MARGIN + 80);
   doc.text("Ruhetage des Unternehmens", 147, y);
   doc.text(String(data.ruhetage ?? "-"), 125 + 40, y);
-  line(doc, y + 1, 180, PAGE_WIDTH - MARGIN);
+  line(doc, y + 1, 185, PAGE_WIDTH - MARGIN);
   y += 12;
 
   // Contract clauses
   doc.setFontSize(SMALL);
   doc.text(
-    "Sollte dieser Vertrag einen anderen, früheren Vertrag ersetzen, so tritt der frühere abgeschlossene Vertrag bei Widerruf dieses Vertrages wieder in Kraft.",
+    "Sollte dieser Vertrag einen anderen, früheren Vertrag ersetzen, so tritt der frühere abgeschlossene Vertrag bei Widerruf dieses Vertrages wieder in",
     MARGIN,
     y,
     { maxWidth: PAGE_WIDTH - 2 * MARGIN }
   );
   y += 3;
   doc.text(
-    "Der Käufer hat die Geschäfts- und Lieferbedingungen des Verkäufers zur Kenntnis genommen und erkennt diese als Bestandteil des Vertrages an.",
+    "Kraft. Der Käufer hat die Geschäfts- und Lieferbedingungen des Verkäufers zur Kenntnis genommen und erkennt diese als Bestandteil des",
     MARGIN,
     y,
     { maxWidth: PAGE_WIDTH - 2 * MARGIN }
   );
   y += 3;
   doc.text(
-    "Zum Zwecke der Vertragsabwicklung werden personenbezogene Daten des Käufers beim Verkäufer gespeichert.",
+    "Vertrages an. Zum Zwecke der Vertragsabwicklung werden personenbezogene Daten des Käufers beim Verkäufer gespeichert.",
     MARGIN,
     y,
     { maxWidth: PAGE_WIDTH - 2 * MARGIN }
@@ -612,7 +612,7 @@ function drawPage1(
   y += 10;
 
   // 1px border around Widerrufsbelehrung block
-  const widerrufsBoxHeight = y - widerrufsBoxTop + 2*boxabstand;
+  const widerrufsBoxHeight = y - widerrufsBoxTop + 3*boxabstand;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.35); // ~1px in mm
   doc.rect(WIDERRUFS_BOX_LEFT-boxabstand, widerrufsBoxTop-boxabstand, WIDERRUFS_BOX_WIDTH+2*boxabstand, widerrufsBoxHeight, "S");
