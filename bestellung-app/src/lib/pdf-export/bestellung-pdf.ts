@@ -378,7 +378,8 @@ function drawPage1(
   const leftLabels = ["Firma", "Name", "PLZ & Ort", "Telefon", "E-Mail Adresse"];
   const leftKeys = ["firma", "name", "plzOrt", "telefon", "email"] as const;
   const rightLabels = ["seit", "Vorname", "Straße & Hausnr.", "Mobil", "Branche", "Geb.-Datum"];
-  const rightKeys = ["seit", "vorname", "strasseHausnr.", "mobil", "branche", "gebDatum"] as const;
+  // Must match BestellungPdfData / BuyerData keys (was wrongly "strasseHausnr." so Straße was missing in PDF)
+  const rightKeys = ["seit", "vorname", "strasseHausnummer", "mobil", "branche", "gebDatum"] as const;
 
   for (let i = 0; i < Math.max(leftLabels.length, rightLabels.length); i++) {
     if (i < leftLabels.length) {
