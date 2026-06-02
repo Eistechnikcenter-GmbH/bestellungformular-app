@@ -46,6 +46,10 @@ type CustomerState = CalculatorState & {
 const STORAGE_MANUAL_KEY = "anfahrtskosten-manual-v1";
 const STORAGE_CUSTOMER_KEY = "anfahrtskosten-customer-v1";
 
+function lacksPostalCode(address: string): boolean {
+  return address.trim().length > 0 && !/\b\d{5}\b/.test(address);
+}
+
 export default function AnfahrtskostenPage() {
   const [activeTab, setActiveTab] = useState<TabId>("manuell");
   const [manualState, setManualState] = useState<ManualState>({
@@ -409,6 +413,12 @@ export default function AnfahrtskostenPage() {
               {customerState.selectedAddress && (
                 <p className="mt-2 text-xs text-stone-600">
                   Zieladresse: {customerState.selectedAddress}
+                </p>
+              )}
+              {customerState.selectedAddress && lacksPostalCode(customerState.selectedAddress) && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Hinweis: In Odoo fehlt Straße/PLZ für diesen Kontakt. Bitte Adresse in Odoo
+                  ergänzen oder im Tab Manuell mit vollständiger Adresse rechnen.
                 </p>
               )}
               {customerState.routeKmRaw != null && (

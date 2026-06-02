@@ -32,7 +32,11 @@ export function getOdooConfig() {
 
 /** Use only in API routes / server; ensures OpenRouteService key is set. */
 export function getOpenRouteServiceConfig() {
-  return {
-    apiKey: requireEnv("OPENROUTESERVICE_API_KEY"),
-  };
+  const apiKey = requireEnv("OPENROUTESERVICE_API_KEY").trim();
+  if (apiKey.length < 20) {
+    throw new Error(
+      "OPENROUTESERVICE_API_KEY looks invalid (too short). Check Vercel env value."
+    );
+  }
+  return { apiKey };
 }

@@ -15,7 +15,15 @@ function compactAddress(lead: CrmRow): string {
   const zip = lead.partner?.zip ?? lead.zip ?? "";
   const city = lead.partner?.city ?? lead.city ?? "";
 
-  return [street, street2, [zip, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const parts = [street, street2, [zip, city].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  if (!parts) return "";
+  const lower = parts.toLowerCase();
+  if (lower.includes("deutschland") || lower.includes("germany")) {
+    return parts;
+  }
+  return `${parts}, Deutschland`;
 }
 
 export async function GET() {

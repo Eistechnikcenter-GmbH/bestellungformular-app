@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOpenRouteServiceConfig } from "@/lib/config";
-
-const ORS_AUTOCOMPLETE_URL = "https://api.openrouteservice.org/geocode/autocomplete";
+import { orsGet } from "@/lib/openrouteservice";
 
 type OrsProperties = {
   label?: string;
@@ -91,14 +90,12 @@ export async function GET(req: Request) {
     }
 
     const { apiKey } = getOpenRouteServiceConfig();
-    const orsUrl = new URL(ORS_AUTOCOMPLETE_URL);
-    orsUrl.searchParams.set("api_key", apiKey);
-    orsUrl.searchParams.set("text", q);
-    orsUrl.searchParams.set("size", "8");
-    orsUrl.searchParams.set("boundary.country", "DE");
-    orsUrl.searchParams.set("layers", "address,street,venue,locality");
-
-    const res = await fetch(orsUrl.toString(), { cache: "no-store" });
+    const res = await orsGet(apiKey, "/geocode/autocomplete", {
+      text: q,
+      size: "8",
+      "boundary.country": "DE",
+      layers: "address,street,venue,locality",
+    });
     if (!res.ok) {
       const err = await res.text();
       return NextResponse.json(

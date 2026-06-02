@@ -1,33 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOpenRouteServiceConfig } from "@/lib/config";
-
-const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
-const ORS_DIRECTIONS_URL =
-  "https://api.openrouteservice.org/v2/directions/driving-car";
-
-type GeocodeFeature = {
-  geometry?: {
-    coordinates?: [number, number];
-  };
-};
-
-async function geocodeAddress(address: string, apiKey: string): Promise<[number, number]> {
-  const url = new URL(ORS_GEOCODE_URL);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("text", address);
-  url.searchParams.set("size", "1");
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Geocoding failed (${res.status})`);
-  }
-  const json = (await res.json()) as { features?: GeocodeFeature[] };
-  const coords = json.features?.[0]?.geometry?.coordinates;
-  if (!coords || coords.length !== 2) {
-    throw new Error(`Address not found: ${address}`);
-  }
-  return coords;
-}
+import { geocodeAddress, orsPostJson } from "@/lib/openrouteservice";
 
 export async function POST(req: Request) {
   try {
@@ -44,24 +17,16 @@ export async function POST(req: Request) {
 
     const { apiKey } = getOpenRouteServiceConfig();
     const [originCoords, destinationCoords] = await Promise.all([
-      geocodeAddress(origin, apiKey),
-      geocodeAddress(destination, apiKey),
+      geocodeAddress(apiKey, origin),
+      geocodeAddress(apiKey, destination),
     ]);
 
-    const routeRes = await fetch(ORS_DIRECTIONS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        coordinates: [originCoords, destinationCoords],
-      }),
-      cache: "no-store",
+    const routeRes = await orsPostJson(apiKey, "/v2/directions/driving-car", {
+      coordinates: [originCoords, destinationCoords],
     });
 
     if (!routeRes.ok) {
-      const msg = await routeRes.text();
+      const msg = (await routeRes.text()).slice(0, 300);
       return NextResponse.json(
         { error: `Route lookup failed (${routeRes.status}): ${msg}` },
         { status: 502 }
@@ -85,9 +50,8 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     console.error("Anfahrtskosten route API error:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Route request failed" },
-      { status: 500 }
-    );
+    const message = e instanceof Error ? e.message : "Route request failed";
+    const status = message.includes("Missing required env") ? 503 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
