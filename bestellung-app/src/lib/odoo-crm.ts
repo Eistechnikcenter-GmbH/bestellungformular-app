@@ -64,6 +64,7 @@ const PARTNER_FIELDS = [
   "zip",
   "email",
   "phone",
+  "parent_id",
   "x_studio_geburtstag",
 ] as const;
 
@@ -79,6 +80,50 @@ function partnerIdFromLead(partner_id: CrmRow["partner_id"]): number | null {
 function strOrUndef(v: string | number | false | null | undefined): string | undefined {
   if (v === false || v === null || v === undefined) return undefined;
   return typeof v === "string" ? v : String(v);
+}
+
+function firstNonEmpty(
+  ...values: (string | undefined | null)[]
+): string | undefined {
+  for (const v of values) {
+    const s = v != null ? String(v).trim() : "";
+    if (s) return s;
+  }
+  return undefined;
+}
+
+function relationId(
+  value: number | [number, string] | false | null | undefined
+): number | null {
+  if (value == null || value === false) return null;
+  if (typeof value === "number") return value;
+  if (Array.isArray(value) && typeof value[0] === "number") return value[0];
+  return null;
+}
+
+function partnerRowToContact(
+  p: OdooPartnerRow,
+  parentById: Map<number, PartnerContact>
+): PartnerContact {
+  const parentId = relationId(p.parent_id);
+  const parent = parentId != null ? parentById.get(parentId) : undefined;
+
+  return {
+    name: strOrUndef(p.name),
+    street: firstNonEmpty(strOrUndef(p.street), parent?.street),
+    street2: firstNonEmpty(strOrUndef(p.street2), parent?.street2),
+    city: firstNonEmpty(strOrUndef(p.city), parent?.city),
+    zip: firstNonEmpty(strOrUndef(p.zip), parent?.zip),
+    email: firstNonEmpty(strOrUndef(p.email), parent?.email),
+    phone: firstNonEmpty(strOrUndef(p.phone), parent?.phone),
+    geburtstag: strOrUndef(p.x_studio_geburtstag),
+  };
+}
+
+function partnerHasAddress(contact: PartnerContact): boolean {
+  return Boolean(
+    firstNonEmpty(contact.street, contact.zip, contact.city)
+  );
 }
 
 /**
@@ -104,25 +149,75 @@ export async function fetchCrmLeads(): Promise<CrmRow[]> {
     .filter((id): id is number => id != null);
   const uniqueIds = [...new Set(ids)];
 
-  let partnerMap: Map<number, PartnerContact> = new Map();
+  const partnerMap: Map<number, PartnerContact> = new Map();
   if (uniqueIds.length > 0) {
     const partners = await odooSearchRead<OdooPartnerRow>("res.partner", {
       domain: [["id", "in", uniqueIds]],
       fields: [...PARTNER_FIELDS],
     });
+
+    const parentIds = [
+      ...new Set(
+        partners
+          .map((p) => relationId(p.parent_id))
+          .filter((id): id is number => id != null && !uniqueIds.includes(id))
+      ),
+    ];
+
+    const parentRows =
+      parentIds.length > 0
+        ? await odooSearchRead<OdooPartnerRow>("res.partner", {
+            domain: [["id", "in", parentIds]],
+            fields: [...PARTNER_FIELDS],
+          })
+        : [];
+
+    const parentById = new Map<number, PartnerContact>();
+    for (const p of parentRows) {
+      const id = typeof p.id === "number" ? p.id : null;
+      if (id == null) continue;
+      parentById.set(id, partnerRowToContact(p, new Map()));
+    }
+
     for (const p of partners) {
       const id = typeof p.id === "number" ? p.id : null;
       if (id == null) continue;
-      partnerMap.set(id, {
-        name: strOrUndef(p.name),
-        street: strOrUndef(p.street),
-        street2: strOrUndef(p.street2),
-        city: strOrUndef(p.city),
-        zip: strOrUndef(p.zip),
-        email: strOrUndef(p.email),
-        phone: strOrUndef(p.phone),
-        geburtstag: strOrUndef(p.x_studio_geburtstag),
+      partnerMap.set(id, partnerRowToContact(p, parentById));
+    }
+
+    const companiesWithoutAddress = partners
+      .map((p) => (typeof p.id === "number" ? p.id : null))
+      .filter((id): id is number => {
+        if (id == null) return false;
+        const contact = partnerMap.get(id);
+        return contact != null && !partnerHasAddress(contact);
       });
+
+    if (companiesWithoutAddress.length > 0) {
+      const childContacts = await odooSearchRead<OdooPartnerRow>("res.partner", {
+        domain: [["parent_id", "in", companiesWithoutAddress]],
+        fields: [...PARTNER_FIELDS],
+        limit: companiesWithoutAddress.length * 5,
+      });
+
+      for (const companyId of companiesWithoutAddress) {
+        const child = childContacts.find(
+          (c) => relationId(c.parent_id) === companyId && partnerHasAddress(partnerRowToContact(c, parentById))
+        );
+        if (!child) continue;
+        const childContact = partnerRowToContact(child, parentById);
+        const existing = partnerMap.get(companyId);
+        partnerMap.set(companyId, {
+          name: firstNonEmpty(existing?.name, childContact.name),
+          street: firstNonEmpty(existing?.street, childContact.street),
+          street2: firstNonEmpty(existing?.street2, childContact.street2),
+          city: firstNonEmpty(existing?.city, childContact.city),
+          zip: firstNonEmpty(existing?.zip, childContact.zip),
+          email: firstNonEmpty(existing?.email, childContact.email),
+          phone: firstNonEmpty(existing?.phone, childContact.phone),
+          geburtstag: existing?.geburtstag ?? childContact.geburtstag,
+        });
+      }
     }
   }
 
