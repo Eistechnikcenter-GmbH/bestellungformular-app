@@ -93,7 +93,7 @@ function firstNonEmpty(
 }
 
 function relationId(
-  value: number | [number, string] | false | null | undefined
+  value: string | number | [number, string] | false | null | undefined
 ): number | null {
   if (value == null || value === false) return null;
   if (typeof value === "number") return value;
