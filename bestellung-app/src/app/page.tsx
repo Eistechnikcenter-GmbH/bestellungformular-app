@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const tiles = [
   { title: "Bestellformular", href: "/bestellformular" },
+  { title: "Anfahrtskosten", href: "/anfahrtskosten" },
   { title: "CRM", href: "/crm" },
   { title: "Produkte", href: "/produkte" },
 ] as const;

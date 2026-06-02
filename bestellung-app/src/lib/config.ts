@@ -29,3 +29,10 @@ export function getOdooConfig() {
     database: process.env.ODOO_DATABASE ?? undefined,
   };
 }
+
+/** Use only in API routes / server; ensures OpenRouteService key is set. */
+export function getOpenRouteServiceConfig() {
+  return {
+    apiKey: requireEnv("OPENROUTESERVICE_API_KEY"),
+  };
+}
