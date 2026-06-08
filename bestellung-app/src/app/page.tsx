@@ -5,6 +5,7 @@ const tiles = [
   { title: "Anfahrtskosten", href: "/anfahrtskosten" },
   { title: "CRM", href: "/crm" },
   { title: "Produkte", href: "/produkte" },
+  { title: "Ad-Auswertung", href: "/ad-auswertung" },
 ] as const;
 
 export default function Home() {
