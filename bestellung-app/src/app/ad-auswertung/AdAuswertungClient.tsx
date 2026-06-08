@@ -20,6 +20,7 @@ import {
 import type { AdAuswertungResult } from "@/lib/ad-auswertung/types";
 import { InvoiceTable } from "./InvoiceTable";
 import { MonthNavigator } from "./MonthNavigator";
+import { PinGate } from "./PinGate";
 import { SummaryDashboard } from "./SummaryDashboard";
 
 type DateMode = "month" | "range";
@@ -37,6 +38,7 @@ export function AdAuswertungClient() {
   const [includeEigenCompanies, setIncludeEigenCompanies] = useState(false);
   const [includeInKlaerung, setIncludeInKlaerung] = useState(false);
 
+  const [unlocked, setUnlocked] = useState<boolean | null>(null);
   const [data, setData] = useState<AdAuswertungResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -90,6 +92,12 @@ export function AdAuswertungClient() {
     [dateFrom, dateTo, minAmount, tagFilter, channelFilter]
   );
 
+  const checkPin = useCallback(async () => {
+    const res = await fetch("/api/ad-auswertung/verify", { credentials: "same-origin" });
+    const json = (await res.json()) as { unlocked: boolean };
+    setUnlocked(json.unlocked);
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -101,7 +109,14 @@ export function AdAuswertungClient() {
         tag: tagFilter,
         channel: channelFilter,
       });
-      const res = await fetch(`/api/ad-auswertung/data?${params}`);
+      const res = await fetch(`/api/ad-auswertung/data?${params}`, {
+        credentials: "same-origin",
+      });
+      if (res.status === 401) {
+        setUnlocked(false);
+        setError("PIN erforderlich — bitte erneut freischalten.");
+        return;
+      }
       const json = (await res.json()) as AdAuswertungResult & { error?: string };
       if (!res.ok) {
         setError(json.error ?? "Fehler beim Laden");
@@ -116,13 +131,25 @@ export function AdAuswertungClient() {
   }, [dateFrom, dateTo, minAmount, tagFilter, channelFilter]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    checkPin();
+  }, [checkPin]);
+
+  useEffect(() => {
+    if (unlocked) loadData();
+  }, [unlocked, loadData]);
 
   function applyPresetYtd() {
     setDateMode("range");
     setRangeFrom(`${getCurrentYearMonth().year}-01-01`);
     setRangeTo(todayIso());
+  }
+
+  if (unlocked === null) {
+    return <p className="text-center text-sm text-stone-500">Lade…</p>;
+  }
+
+  if (!unlocked) {
+    return <PinGate onUnlocked={() => setUnlocked(true)} />;
   }
 
   return (

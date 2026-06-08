@@ -15,11 +15,20 @@ export function PinGate({ onUnlocked }: { onUnlocked: () => void }) {
       const res = await fetch("/api/ad-auswertung/pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({ pin }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setError(data.error ?? "Falscher PIN");
+        return;
+      }
+      const verifyRes = await fetch("/api/ad-auswertung/verify", {
+        credentials: "same-origin",
+      });
+      const verifyJson = (await verifyRes.json()) as { unlocked: boolean };
+      if (!verifyJson.unlocked) {
+        setError("PIN gespeichert, aber Sitzung konnte nicht bestätigt werden. Bitte erneut versuchen.");
         return;
       }
       onUnlocked();

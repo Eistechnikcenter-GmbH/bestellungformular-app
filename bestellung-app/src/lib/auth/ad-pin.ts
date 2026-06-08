@@ -5,7 +5,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 const COOKIE_NAME = "ad_auswertung_unlocked";
-const PIN = "1203";
+const PIN = "1404";
 
 function getSecret(): string {
   const s = process.env.ETC_SESSION_SECRET;

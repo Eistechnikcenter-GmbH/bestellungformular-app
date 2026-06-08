@@ -150,7 +150,8 @@ async function fetchLeasingPartnerCandidates(
 
 function buildPartnerTagMap(
   leads: OdooLeadRow[],
-  tagNameById: Map<number, string>
+  tagNameById: Map<number, string>,
+  partnerParentById: Map<number, number | null>
 ): Map<number, { leadId: number; tags: string[] }> {
   const sorted = [...leads].sort((a, b) => {
     const da = a.create_date ?? "";
@@ -164,13 +165,18 @@ function buildPartnerTagMap(
     if (partnerId == null) continue;
     if (map.has(partnerId)) continue;
 
-    const tagIds = Array.isArray(lead.tag_ids) ? lead.tag_ids : [];
-    const tags = tagIds
-      .map((id) => tagNameById.get(id))
-      .filter((name): name is string => Boolean(name));
-
+    const tags = leadTags(lead, tagNameById);
     map.set(partnerId, { leadId: lead.id, tags });
   }
+
+  // CRM linked to a person → also attach tags to parent company (invoice may use company only).
+  for (const [partnerId, data] of map) {
+    const parentId = partnerParentById.get(partnerId);
+    if (parentId != null && !map.has(parentId)) {
+      map.set(parentId, data);
+    }
+  }
+
   return map;
 }
 
@@ -233,8 +239,33 @@ function findCrmLeadByName(
   return best;
 }
 
+function findCrmLeadForCustomer(
+  endCustomerName: string,
+  leasingKunde: string | null,
+  leads: OdooLeadRow[],
+  tagNameById: Map<number, string>,
+  preset: CrmLeadNameMatch | null = null
+): CrmLeadNameMatch | null {
+  if (preset) return preset;
+
+  const candidates = [leasingKunde, endCustomerName].filter(
+    (name): name is string => Boolean(name?.trim())
+  );
+
+  let best: CrmLeadNameMatch | null = null;
+  for (const name of candidates) {
+    const match = findCrmLeadByName(name, leads, tagNameById);
+    if (!match) continue;
+    if (!best || match.score > best.score) {
+      best = match;
+    }
+  }
+  return best;
+}
+
 function resolveInvoiceTags(
   endCustomerPartnerId: number | null,
+  endCustomerName: string,
   unmatched: boolean,
   leasingKunde: string | null,
   partnerTagMap: Map<number, { leadId: number; tags: string[] }>,
@@ -267,7 +298,13 @@ function resolveInvoiceTags(
     };
   }
 
-  const crmByName = crmMatchByName ?? findCrmLeadByName(leasingKunde, leads, tagNameById);
+  const crmByName = findCrmLeadForCustomer(
+    endCustomerName,
+    leasingKunde,
+    leads,
+    tagNameById,
+    crmMatchByName
+  );
   if (crmByName && crmByName.tags.length > 0) {
     return {
       tags: crmByName.tags,
@@ -422,9 +459,31 @@ export async function fetchAdAuswertung(
     .filter(Boolean);
 
   const matchPartners = await fetchLeasingPartnerCandidates(aglLeasingTexts, partners);
+
+  const crmPartnerIds = [
+    ...new Set(
+      leads
+        .map((lead) => relationId(lead.partner_id))
+        .filter((id): id is number => id != null)
+    ),
+  ];
+  const crmPartnerRows =
+    crmPartnerIds.length > 0
+      ? await odooSearchRead<{ id: number; parent_id: number | [number, string] | false }>(
+          "res.partner",
+          {
+            domain: [["id", "in", crmPartnerIds]],
+            fields: ["id", "parent_id"],
+          }
+        )
+      : [];
+  const partnerParentById = new Map(
+    crmPartnerRows.map((p) => [p.id, relationId(p.parent_id)])
+  );
+
   const tagNameById = new Map(tags.map((t) => [t.id, t.name]));
   const categoryNameById = new Map(partnerCategories.map((c) => [c.id, c.name]));
-  const partnerTagMap = buildPartnerTagMap(leads, tagNameById);
+  const partnerTagMap = buildPartnerTagMap(leads, tagNameById, partnerParentById);
   const partnerCategoryMap = buildPartnerCategoryMap(matchPartners, categoryNameById);
   const partnerNameById = new Map(matchPartners.map((p) => [p.id, p.name]));
 
@@ -487,6 +546,7 @@ export async function fetchAdAuswertung(
     const { tags: invoiceTags, tagSource, crmLeadId, autoAssignedKaltKontakt } =
       resolveInvoiceTags(
         endCustomerPartnerId,
+        endCustomerName,
         unmatched,
         leasingKunde,
         partnerTagMap,
