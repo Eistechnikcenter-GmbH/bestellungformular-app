@@ -1,0 +1,22 @@
+import type { Metadata } from "next";
+import "./globals.css";
+import { AppShell } from "./AppShell";
+
+export const metadata: Metadata = {
+  title: "ETC-App | Eistechnikcenter",
+  description: "Interne Plattform — CRM, Kontakte, Bestellformular, Lager und mehr",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="de">
+      <body className="min-h-screen bg-stone-100 text-stone-800 antialiased">
+        <AppShell>{children}</AppShell>
+      </body>
+    </html>
+  );
+}
