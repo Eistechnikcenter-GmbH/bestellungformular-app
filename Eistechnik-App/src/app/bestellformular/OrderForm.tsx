@@ -29,7 +29,6 @@ import {
 /** Verkäufer options for dropdown (value = filename in public/signing without .png). */
 export const VERKAUFER_OPTIONS = [
   { value: "wilhelm-breuer", label: "Wilhelm Breuer" },
-  { value: "isabell-richter", label: "Isabell Richter" },
   { value: "michael-gellert", label: "Michael Gellert" },
 ] as const;
 
